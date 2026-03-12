@@ -1,0 +1,55 @@
+# Full topology example for deploying a SeaweedFS cluster with TiUP.
+#
+# package_path: absolute path to a local .tar.gz containing the `weed` binary.
+#   This tarball is uploaded from the control machine to each target host.
+#
+# filer_store: configures filer metadata backend.
+#   type: tikv          (only supported type in this phase)
+#   from_tidb_cluster:  name of an existing TiUP-managed TiDB cluster
+#   key_prefix:         key prefix for SeaweedFS data in TiKV
+---
+global:
+  user: "tidb"
+  ssh_port: 22
+  deploy_dir: "/home/tidb/seaweedfs/deploy"
+  data_dir: "/home/tidb/seaweedfs/data"
+  # arch: "amd64"
+
+package_path: "/tmp/seaweedfs-linux-amd64.tar.gz"
+
+filer_store:
+  type: tikv
+  from_tidb_cluster: "tidb-prod"
+  key_prefix: "seaweedfs-prod"
+
+master_servers:
+  - host: 10.0.1.21
+    # port: 9333
+    # default_replication: "001"
+    # volume_size_limit_mb: 30000
+    # deploy_dir: "/home/tidb/seaweedfs/deploy/master-9333"
+    # data_dir: "/home/tidb/seaweedfs/data/master-9333"
+    # log_dir: "/home/tidb/seaweedfs/deploy/master-9333/log"
+  - host: 10.0.1.22
+  - host: 10.0.1.23
+
+volume_servers:
+  - host: 10.0.1.31
+    # port: 8080
+    # data_center: "dc1"
+    # rack: "rack-a"
+    paths:
+      - path: "/data1/seaweedfs"
+        # disk_type: "ssd"
+      - path: "/data2/seaweedfs"
+        # disk_type: "hdd"
+  - host: 10.0.1.32
+    paths:
+      - path: "/data1/seaweedfs"
+
+filer_servers:
+  - host: 10.0.1.41
+    # port: 8888
+    # deploy_dir: "/home/tidb/seaweedfs/deploy/filer-8888"
+    # log_dir: "/home/tidb/seaweedfs/deploy/filer-8888/log"
+  - host: 10.0.1.42

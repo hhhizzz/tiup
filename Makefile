@@ -49,7 +49,7 @@ build: tiup components
 	@# Target: build tiup and all it's components
 
 .PHONY: components
-components: playground client cluster dm server
+components: playground client cluster dm seaweedfs server
 	@# Target: build the playground, client, cluster, dm and server components
 
 .PHONY: tiup
@@ -77,6 +77,11 @@ cluster:
 dm:
 	@# Target: build the tiup-dm component
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tiup-dm ./components/dm
+
+.PHONY: seaweedfs
+seaweedfs:
+	@# Target: build the tiup-seaweedfs component
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tiup-seaweedfs ./components/seaweedfs
 
 .PHONY: ctl
 ctl:
