@@ -12,3 +12,68 @@
 // limitations under the License.
 
 package spec
+
+import (
+	"fmt"
+	"path/filepath"
+	"reflect"
+
+	cspec "github.com/pingcap/tiup/pkg/cluster/spec"
+)
+
+var specManager *cspec.SpecManager
+
+// Metadata is the specification of generic cluster metadata
+type Metadata struct {
+	User    string `yaml:"user"`              // the user to run and manage cluster on remote
+	Version string `yaml:"seaweedfs_version"` // the version of SeaweedFS cluster
+
+	Topology *Specification `yaml:"topology"`
+}
+
+var _ cspec.UpgradableMetadata = &Metadata{}
+
+// SetVersion implement UpgradableMetadata interface.
+func (m *Metadata) SetVersion(s string) {
+	m.Version = s
+}
+
+// SetUser implement UpgradableMetadata interface.
+func (m *Metadata) SetUser(s string) {
+	m.User = s
+}
+
+// GetTopology implements Metadata interface.
+func (m *Metadata) GetTopology() cspec.Topology {
+	return m.Topology
+}
+
+// SetTopology implements Metadata interface.
+func (m *Metadata) SetTopology(topo cspec.Topology) {
+	swTopo, ok := topo.(*Specification)
+	if !ok {
+		panic(fmt.Sprintln("wrong type: ", reflect.TypeOf(topo)))
+	}
+
+	m.Topology = swTopo
+}
+
+// GetBaseMeta implements Metadata interface.
+func (m *Metadata) GetBaseMeta() *cspec.BaseMeta {
+	return &cspec.BaseMeta{
+		Version: m.Version,
+		User:    m.User,
+	}
+}
+
+// GetSpecManager return the spec manager of seaweedfs cluster.
+func GetSpecManager() *cspec.SpecManager {
+	if specManager == nil {
+		specManager = cspec.NewSpec(filepath.Join(cspec.ProfileDir(), cspec.TiUPClusterDir), func() cspec.Metadata {
+			return &Metadata{
+				Topology: new(Specification),
+			}
+		})
+	}
+	return specManager
+}
