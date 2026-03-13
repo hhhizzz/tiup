@@ -47,6 +47,164 @@ tar -czf /tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz -C "$(go env GOPATH)
 
 If your target nodes are older Debian-based systems, prefer the static build. A dynamically linked build can fail on startup with missing `GLIBC_*` symbols.
 
+## Direct CLI quick start
+
+If you do not want to use Docker, the normal command-line deployment flow is:
+
+1. Build a `weed` package with TiKV support.
+2. Publish that package into a local TiUP mirror as:
+   - `seaweedfs-master`
+   - `seaweedfs-volume`
+   - `seaweedfs-filer`
+3. Write a topology that points `package_path` at the same local tarball and `filer_store.from_tidb_cluster` at an existing TiUP-managed TiDB cluster.
+4. Run `deploy`, `start`, `display`, `stop`, and `destroy` from the shell.
+
+The commands below assume:
+
+- you are on the control machine
+- your target hosts are reachable over SSH
+- you already have a TiDB cluster managed by TiUP, for example `tidb-prod`
+- you want to deploy SeaweedFS as version `4.5.1` on the TiUP side
+
+### 1. Build the SeaweedFS package
+
+Build a static `weed` binary with the `tikv` build tag and pack it into a tarball:
+
+```bash
+CGO_ENABLED=0 \
+go install -tags=tikv github.com/seaweedfs/seaweedfs/weed@4.05
+
+tar -czf /tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz \
+  -C "$(go env GOPATH)/bin" \
+  weed
+```
+
+If you are deploying to `arm64` machines, build on an `arm64` control host or cross-compile an `arm64` binary first and then pack it.
+
+### 2. Publish the package into a local TiUP mirror
+
+Current `tiup seaweedfs deploy` still runs the generic TiUP download stage, so the SeaweedFS components must exist in the configured TiUP mirror even though the runtime tarball also comes from `package_path`.
+
+Initialize a local mirror:
+
+```bash
+mkdir -p /tmp/swmirror
+tiup mirror init /tmp/swmirror
+```
+
+Pick one generated root key and grant a temporary owner:
+
+```bash
+KEY=$(ls /tmp/swmirror/keys/*-root.json | head -n 1)
+TIUP_MIRRORS=/tmp/swmirror tiup mirror grant swtest -n swtest -k "$KEY"
+```
+
+Publish the same tarball as the three SeaweedFS components:
+
+```bash
+TIUP_MIRRORS=/tmp/swmirror tiup mirror publish \
+  seaweedfs-master v4.5.1 /tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz weed \
+  --os linux --arch amd64 --desc "SeaweedFS master" -k "$KEY"
+
+TIUP_MIRRORS=/tmp/swmirror tiup mirror publish \
+  seaweedfs-volume v4.5.1 /tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz weed \
+  --os linux --arch amd64 --desc "SeaweedFS volume" -k "$KEY"
+
+TIUP_MIRRORS=/tmp/swmirror tiup mirror publish \
+  seaweedfs-filer v4.5.1 /tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz weed \
+  --os linux --arch amd64 --desc "SeaweedFS filer" -k "$KEY"
+```
+
+The important detail here is that the TiUP deploy version must be a SemVer-like string such as `4.5.1`, even if the upstream SeaweedFS tag used to build the package is `4.05`.
+
+### 3. Write the topology
+
+Example:
+
+```yaml
+global:
+  user: "tidb"
+  ssh_port: 22
+  deploy_dir: "/swfs-deploy"
+  data_dir: "/swfs-data"
+  arch: "amd64"
+
+package_path: "/tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz"
+
+filer_store:
+  type: tikv
+  from_tidb_cluster: "tidb-prod"
+  key_prefix: "swfs-prod"
+
+master_servers:
+  - host: 10.0.1.21
+
+volume_servers:
+  - host: 10.0.1.22
+    paths:
+      - path: "/data1/seaweedfs"
+      - path: "/data2/seaweedfs"
+
+filer_servers:
+  - host: 10.0.1.23
+```
+
+Save it as `swfs-topology.yaml`.
+
+### 4. Deploy and start from the shell
+
+Deploy:
+
+```bash
+TIUP_MIRRORS=/tmp/swmirror \
+tiup-seaweedfs deploy swfs-prod 4.5.1 ./swfs-topology.yaml -u root -y
+```
+
+Start:
+
+```bash
+TIUP_MIRRORS=/tmp/swmirror \
+tiup-seaweedfs start swfs-prod
+```
+
+Inspect:
+
+```bash
+TIUP_MIRRORS=/tmp/swmirror \
+tiup-seaweedfs display swfs-prod
+```
+
+Stop:
+
+```bash
+TIUP_MIRRORS=/tmp/swmirror \
+tiup-seaweedfs stop swfs-prod
+```
+
+Destroy:
+
+```bash
+TIUP_MIRRORS=/tmp/swmirror \
+tiup-seaweedfs destroy swfs-prod -y --force
+```
+
+### 5. Check the generated filer configuration
+
+After `deploy`, check that the filer got a TiKV-backed metadata config:
+
+```bash
+ssh root@<filer-host> 'sudo cat /swfs-deploy/seaweedfs-filer-8888/filer.toml'
+```
+
+You should see at least:
+
+```toml
+[tikv]
+enabled = true
+pdaddrs = "..."
+keyPrefix = "swfs-prod"
+```
+
 ## Topology example
 
 See:
