@@ -14,40 +14,12 @@
 package command
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-func buildTarball(t *testing.T, files map[string]string) string {
-	t.Helper()
-	p := filepath.Join(t.TempDir(), "test.tar.gz")
-	f, err := os.Create(p)
-	require.NoError(t, err)
-	defer f.Close()
-
-	gw := gzip.NewWriter(f)
-	defer gw.Close()
-
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	for name, content := range files {
-		hdr := &tar.Header{
-			Name: name,
-			Mode: 0644,
-			Size: int64(len(content)),
-		}
-		require.NoError(t, tw.WriteHeader(hdr))
-		_, err := tw.Write([]byte(content))
-		require.NoError(t, err)
-	}
-	return p
-}
 
 func writeTopologyFile(t *testing.T, content string) string {
 	t.Helper()
@@ -56,12 +28,9 @@ func writeTopologyFile(t *testing.T, content string) string {
 	return f
 }
 
-func TestDeployRejectsPackageWithoutWeedBinary(t *testing.T) {
-	packagePath := buildTarball(t, map[string]string{
-		"README.md": "not weed",
-	})
+func TestDeployRejectsLegacyPackagePathField(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
-package_path: "`+packagePath+`"
+package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -78,14 +47,11 @@ filer_servers:
 
 	err := validateDeployTopology(topoFile)
 	require.Error(t, err)
+	require.Contains(t, err.Error(), "package_path")
 }
 
-func TestDeployAcceptsValidPackage(t *testing.T) {
-	packagePath := buildTarball(t, map[string]string{
-		"weed": "#!/bin/sh\necho seaweedfs",
-	})
+func TestDeployAcceptsMirrorOnlyTopology(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
-package_path: "`+packagePath+`"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"

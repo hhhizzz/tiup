@@ -30,15 +30,20 @@ func TestMetadataImplementsManagerContracts(t *testing.T) {
 
 func TestMetadataSetTopology(t *testing.T) {
 	meta := &Metadata{Topology: new(Specification)}
-	newTopo := &Specification{PackagePath: "/tmp/test.tar.gz"}
+	newTopo := &Specification{
+		FilerStore: FilerStoreSpec{
+			Type:            "tikv",
+			FromTiDBCluster: "tidb-prod",
+			KeyPrefix:       "swfs-prod",
+		},
+	}
 	meta.SetTopology(newTopo)
-	require.Equal(t, "/tmp/test.tar.gz", meta.Topology.PackagePath)
+	require.Equal(t, "tikv", meta.Topology.FilerStore.Type)
 }
 
 func TestNewPartAndMergeTopo(t *testing.T) {
 	topo := &Specification{
 		GlobalOptions: GlobalOptions{User: "tidb"},
-		PackagePath:   "/tmp/seaweedfs.tar.gz",
 		FilerStore: FilerStoreSpec{
 			Type:            "tikv",
 			FromTiDBCluster: "tidb-prod",

@@ -21,7 +21,6 @@ import (
 
 	"github.com/pingcap/tiup/pkg/cluster/ctxt"
 	"github.com/pingcap/tiup/pkg/cluster/spec"
-	"github.com/pingcap/tiup/pkg/cluster/task"
 	"github.com/pingcap/tiup/pkg/cluster/template/scripts"
 	"github.com/pingcap/tiup/pkg/meta"
 	"github.com/pingcap/tiup/pkg/utils"
@@ -31,11 +30,6 @@ import (
 type MasterInstance struct {
 	spec.BaseInstance
 	topo *Specification
-}
-
-// Deploy implements manager.DeployerInstance.
-func (i *MasterInstance) Deploy(b *task.Builder, _ string, deployDir string, _ string, _ string, _ string) {
-	installLocalPackage(b, i.topo.PackagePath, i.GetManageHost(), deployDir)
 }
 
 // InitConfig implements Instance interface.

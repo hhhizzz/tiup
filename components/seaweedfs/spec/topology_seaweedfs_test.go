@@ -33,7 +33,6 @@ func TestTopologyDefaultsAndValidation(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
 global:
   user: "tidb"
-package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -50,7 +49,6 @@ filer_servers:
 	var topo Specification
 	err := cspec.ParseTopologyYaml(topoFile, &topo)
 	require.NoError(t, err)
-	require.Equal(t, "/tmp/seaweedfs.tar.gz", topo.PackagePath)
 	require.Equal(t, "001", topo.MasterServers[0].DefaultReplication)
 	require.Equal(t, 9333, topo.MasterServers[0].Port)
 	require.Equal(t, 8080, topo.VolumeServers[0].Port)
@@ -60,7 +58,6 @@ filer_servers:
 
 func TestTopologyRejectsEmptyVolumePaths(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
-package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -79,8 +76,9 @@ filer_servers:
 	require.Contains(t, err.Error(), "volume_servers")
 }
 
-func TestTopologyRejectsMissingPackagePath(t *testing.T) {
+func TestTopologyRejectsLegacyPackagePathField(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
+package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -100,31 +98,8 @@ filer_servers:
 	require.Contains(t, err.Error(), "package_path")
 }
 
-func TestTopologyRejectsRelativePackagePath(t *testing.T) {
-	topoFile := writeTopologyFile(t, `
-package_path: "relative/path.tar.gz"
-filer_store:
-  type: tikv
-  from_tidb_cluster: "tidb-prod"
-  key_prefix: "swfs-prod"
-master_servers:
-  - host: 10.0.1.21
-volume_servers:
-  - host: 10.0.1.22
-    paths:
-      - path: "/data1/seaweedfs"
-filer_servers:
-  - host: 10.0.1.23
-`)
-	var topo Specification
-	err := cspec.ParseTopologyYaml(topoFile, &topo)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "absolute")
-}
-
 func TestTopologyRejectsDuplicateVolumePaths(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
-package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -149,7 +124,6 @@ func TestInstancesCreation(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
 global:
   user: "tidb"
-package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -201,7 +175,6 @@ func TestVolumeInstanceExposesConfiguredPathsAsDataDirs(t *testing.T) {
 	topoFile := writeTopologyFile(t, `
 global:
   user: "tidb"
-package_path: "/tmp/seaweedfs.tar.gz"
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"

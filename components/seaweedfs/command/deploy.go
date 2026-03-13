@@ -77,10 +77,7 @@ func newDeployCmd() *cobra.Command {
 
 func validateDeployTopology(topoFile string) error {
 	var topo spec.Specification
-	if err := cspec.ParseTopologyYaml(topoFile, &topo); err != nil {
-		return err
-	}
-	return spec.ValidateLocalPackage(topo.PackagePath)
+	return cspec.ParseTopologyYaml(topoFile, &topo)
 }
 
 func postDeployHook(builder *task.Builder, topo cspec.Topology, _ operator.Options) {

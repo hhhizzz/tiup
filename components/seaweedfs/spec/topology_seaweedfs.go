@@ -80,9 +80,9 @@ func isSkipField(field reflect.Value) bool {
 
 // FilerStoreSpec describes where the filer stores its metadata.
 type FilerStoreSpec struct {
-	Type           string `yaml:"type"`              // must be "tikv"
+	Type            string `yaml:"type"`              // must be "tikv"
 	FromTiDBCluster string `yaml:"from_tidb_cluster"` // name of the TiDB cluster whose TiKV is reused
-	KeyPrefix      string `yaml:"key_prefix"`        // key prefix inside the TiKV store
+	KeyPrefix       string `yaml:"key_prefix"`        // key prefix inside the TiKV store
 }
 
 // VolumePathSpec describes a single storage path for a volume server.
@@ -197,7 +197,6 @@ func (s *FilerSpec) IgnoreMonitorAgent() bool { return false }
 // Specification represents the specification of a SeaweedFS cluster topology.yaml.
 type Specification struct {
 	GlobalOptions GlobalOptions  `yaml:"global,omitempty" validate:"global:editable"`
-	PackagePath   string         `yaml:"package_path"`
 	FilerStore    FilerStoreSpec `yaml:"filer_store"`
 	MasterServers []*MasterSpec  `yaml:"master_servers"`
 	VolumeServers []*VolumeSpec  `yaml:"volume_servers"`
@@ -273,7 +272,6 @@ func (s *Specification) Merge(that spec.Topology) spec.Topology {
 	other := that.(*Specification)
 	return &Specification{
 		GlobalOptions: s.GlobalOptions,
-		PackagePath:   s.PackagePath,
 		FilerStore:    s.FilerStore,
 		MasterServers: append(s.MasterServers, other.MasterServers...),
 		VolumeServers: append(s.VolumeServers, other.VolumeServers...),
@@ -450,14 +448,6 @@ func (s *Specification) CountDir(targetHost, dirPrefix string) int {
 // Validate validates the topology specification and produces an error if the
 // specification is invalid (e.g: port conflicts or directory conflicts).
 func (s *Specification) Validate() error {
-	// package_path must be non-empty and absolute
-	if s.PackagePath == "" {
-		return errors.New("package_path must be set")
-	}
-	if !filepath.IsAbs(s.PackagePath) {
-		return errors.Errorf("package_path must be an absolute path, got %q", s.PackagePath)
-	}
-
 	// filer_store validations
 	if s.FilerStore.Type != "tikv" {
 		return errors.Errorf("filer_store.type must be \"tikv\", got %q", s.FilerStore.Type)

@@ -27,7 +27,7 @@ func TestTemplateCommandPrintsSeaweedTemplate(t *testing.T) {
 	cmd.SetErr(&out)
 
 	require.NoError(t, cmd.Execute())
-	require.Contains(t, out.String(), "package_path:")
+	require.NotContains(t, out.String(), "package_path:")
 	require.Contains(t, out.String(), "master_servers:")
 	require.Contains(t, out.String(), "volume_servers:")
 	require.Contains(t, out.String(), "filer_store:")

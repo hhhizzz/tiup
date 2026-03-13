@@ -1,15 +1,11 @@
 # Minimal topology for deploying a SeaweedFS cluster.
 # Requires:
-#   - package_path: absolute path to a local .tar.gz containing the `weed` binary
 #   - filer_store.from_tidb_cluster: name of an existing TiUP-managed TiDB cluster
 #     whose PD endpoints will be used as the filer's TiKV metadata backend
 # Deploy command note:
 #   - `tiup-seaweedfs deploy <cluster> <version> topo.yaml` still expects a
 #     SemVer-like version string on the TiUP side, for example `4.5.1`.
 ---
-# package_path must point to a local SeaweedFS tarball on the control machine.
-package_path: "/tmp/seaweedfs-linux-amd64.tar.gz"
-
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"

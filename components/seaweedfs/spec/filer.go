@@ -22,7 +22,6 @@ import (
 
 	"github.com/pingcap/tiup/pkg/cluster/ctxt"
 	"github.com/pingcap/tiup/pkg/cluster/spec"
-	"github.com/pingcap/tiup/pkg/cluster/task"
 	"github.com/pingcap/tiup/pkg/cluster/template/scripts"
 	"github.com/pingcap/tiup/pkg/meta"
 	"github.com/pingcap/tiup/pkg/utils"
@@ -49,11 +48,6 @@ func buildTiKVFilerToml(store *ResolvedTiKVStore) string {
 	}
 
 	return b.String()
-}
-
-// Deploy implements manager.DeployerInstance.
-func (i *FilerInstance) Deploy(b *task.Builder, _ string, deployDir string, _ string, _ string, _ string) {
-	installLocalPackage(b, i.topo.PackagePath, i.GetManageHost(), deployDir)
 }
 
 // InitConfig implements Instance interface.

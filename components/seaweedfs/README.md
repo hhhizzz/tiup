@@ -14,27 +14,19 @@ Current scope:
 
 ## Current deployment model
 
-Two artifact inputs are currently required:
+SeaweedFS deployment is mirror-only:
 
-1. `package_path`
-   An absolute path on the control machine that points to a local `.tar.gz` containing the `weed` binary.
-2. TiUP component source
-   The current implementation still goes through the generic TiUP download phase during `deploy`, so the SeaweedFS components must also exist in the configured TiUP mirror.
-
-In practice this means:
-
-- for development or private use, use a local TiUP mirror that publishes:
+- publish SeaweedFS packages to a TiUP mirror as:
   - `seaweedfs-master`
   - `seaweedfs-volume`
   - `seaweedfs-filer`
-- set `package_path` to the same `weed` tarball used for the runtime install
+- deploy with a version that exists for those three components in the configured mirror
 
 ## Prerequisites
 
 Before deploying SeaweedFS, prepare:
 
 - a working SSH path from the control machine to all target hosts
-- a local `weed` tarball
 - a TiDB cluster name that resolves through `filer_store.from_tidb_cluster`
 - a TiUP mirror that contains SeaweedFS component metadata for the target version
 
@@ -56,7 +48,7 @@ If you do not want to use Docker, the normal command-line deployment flow is:
    - `seaweedfs-master`
    - `seaweedfs-volume`
    - `seaweedfs-filer`
-3. Write a topology that points `package_path` at the same local tarball and `filer_store.from_tidb_cluster` at an existing TiUP-managed TiDB cluster.
+3. Write a topology that points `filer_store.from_tidb_cluster` at an existing TiUP-managed TiDB cluster.
 4. Run `deploy`, `start`, `display`, `stop`, and `destroy` from the shell.
 
 The commands below assume:
@@ -83,7 +75,7 @@ If you are deploying to `arm64` machines, build on an `arm64` control host or cr
 
 ### 2. Publish the package into a local TiUP mirror
 
-Current `tiup seaweedfs deploy` still runs the generic TiUP download stage, so the SeaweedFS components must exist in the configured TiUP mirror even though the runtime tarball also comes from `package_path`.
+`tiup seaweedfs deploy` installs SeaweedFS only from the configured TiUP mirror, so the SeaweedFS component packages must exist there before deployment.
 
 Initialize a local mirror:
 
@@ -128,8 +120,6 @@ global:
   deploy_dir: "/swfs-deploy"
   data_dir: "/swfs-data"
   arch: "amd64"
-
-package_path: "/tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz"
 
 filer_store:
   type: tikv
@@ -222,8 +212,6 @@ global:
   data_dir: "/swfs-data"
   arch: "amd64"
 
-package_path: "/tmp/seaweedfs-4.05-linux-amd64-tikv-static.tar.gz"
-
 filer_store:
   type: tikv
   from_tidb_cluster: "tidb-prod"
@@ -244,8 +232,6 @@ filer_servers:
 
 Important field semantics:
 
-- `package_path`
-  Read locally on the control machine and uploaded to every target host.
 - `filer_store.from_tidb_cluster`
   Must point to a TiUP-managed TiDB cluster metadata directory under `storage/cluster/clusters/<name>`.
 - `filer_store.key_prefix`
@@ -255,7 +241,7 @@ Important field semantics:
 
 ## Deploy
 
-Use a SemVer-like version string in the TiUP command, even if the upstream SeaweedFS release tag is not strict SemVer. For example, a package built from upstream `4.05` can be published and deployed as `4.5.1` on the TiUP side.
+Use a version string that exists in the configured mirror for all three SeaweedFS components. It can still be a SemVer-like string even if the upstream SeaweedFS release tag is not strict SemVer. For example, a package built from upstream `4.05` can be published and deployed as `4.5.1` on the TiUP side.
 
 ```bash
 TIUP_MIRRORS=/path/to/local-mirror \
@@ -265,8 +251,8 @@ tiup-seaweedfs deploy swfs-prod 4.5.1 ./swfs-topology.yaml -u root -y
 What deploy does:
 
 - detects host OS/arch
-- downloads SeaweedFS component manifests from the configured mirror
-- uploads the local `package_path` tarball to each node
+- downloads SeaweedFS component packages from the configured mirror
+- copies those packages to each node
 - generates:
   - systemd units
   - `run_seaweedfs-master.sh`
