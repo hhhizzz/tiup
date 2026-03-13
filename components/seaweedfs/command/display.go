@@ -1,0 +1,81 @@
+// Copyright 2025 PingCAP, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package command
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/pingcap/tiup/components/seaweedfs/spec"
+	"github.com/pingcap/tiup/pkg/cluster/manager"
+	"github.com/spf13/cobra"
+)
+
+func newDisplayCmd() *cobra.Command {
+	var (
+		dopt            manager.DisplayOption
+		showVersionOnly bool
+		statusTimeout   uint64
+	)
+	cmd := &cobra.Command{
+		Use:   "display <cluster-name>",
+		Short: "Display information of a SeaweedFS cluster",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return cmd.Help()
+			}
+
+			gOpt.APITimeout = statusTimeout
+			dopt.ClusterName = args[0]
+
+			if showVersionOnly {
+				meta := &spec.Metadata{Topology: new(spec.Specification)}
+				if err := swspec.Metadata(dopt.ClusterName, meta); err != nil {
+					return err
+				}
+				fmt.Println(meta.Version)
+				return nil
+			}
+
+			return cm.Display(dopt, gOpt)
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			switch len(args) {
+			case 0:
+				return shellCompGetClusterName(toComplete)
+			default:
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+		},
+	}
+
+	cmd.Flags().StringSliceVarP(&gOpt.Roles, "role", "R", nil, "Only display specified roles")
+	cmd.Flags().StringSliceVarP(&gOpt.Nodes, "node", "N", nil, "Only display specified nodes")
+	cmd.Flags().BoolVar(&showVersionOnly, "version", false, "Only display SeaweedFS cluster version")
+	cmd.Flags().BoolVar(&dopt.ShowUptime, "uptime", false, "Display SeaweedFS with uptime")
+	cmd.Flags().Uint64Var(&statusTimeout, "status-timeout", 10, "Timeout in seconds when getting node status")
+
+	return cmd
+}
+
+func shellCompGetClusterName(toComplete string) ([]string, cobra.ShellCompDirective) {
+	var result []string
+	clusters, _ := cm.GetClusterList()
+	for _, c := range clusters {
+		if strings.HasPrefix(c.Name, toComplete) {
+			result = append(result, c.Name)
+		}
+	}
+	return result, cobra.ShellCompDirectiveNoFileComp
+}

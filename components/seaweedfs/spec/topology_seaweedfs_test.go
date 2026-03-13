@@ -145,6 +145,86 @@ filer_servers:
 	require.Contains(t, err.Error(), "duplicate")
 }
 
+func TestInstancesCreation(t *testing.T) {
+	topoFile := writeTopologyFile(t, `
+global:
+  user: "tidb"
+package_path: "/tmp/seaweedfs.tar.gz"
+filer_store:
+  type: tikv
+  from_tidb_cluster: "tidb-prod"
+  key_prefix: "swfs-prod"
+master_servers:
+  - host: 10.0.1.21
+  - host: 10.0.1.22
+volume_servers:
+  - host: 10.0.1.31
+    paths:
+      - path: "/data1/seaweedfs"
+filer_servers:
+  - host: 10.0.1.41
+`)
+	var topo Specification
+	require.NoError(t, cspec.ParseTopologyYaml(topoFile, &topo))
+
+	// Master instances
+	masterComp := &SeaweedMasterComponent{Topology: &topo}
+	masters := masterComp.Instances()
+	require.Len(t, masters, 2)
+	require.Equal(t, "10.0.1.21", masters[0].GetHost())
+	require.Equal(t, 9333, masters[0].GetPort())
+	require.Equal(t, "10.0.1.22", masters[1].GetHost())
+
+	// Volume instances
+	volumeComp := &SeaweedVolumeComponent{Topology: &topo}
+	volumes := volumeComp.Instances()
+	require.Len(t, volumes, 1)
+	require.Equal(t, "10.0.1.31", volumes[0].GetHost())
+	require.Equal(t, 8080, volumes[0].GetPort())
+	require.Equal(t, "/data1/seaweedfs", volumes[0].DataDir())
+	require.Contains(t, volumes[0].UsedDirs(), "/data1/seaweedfs")
+
+	// Filer instances
+	filerComp := &SeaweedFilerComponent{Topology: &topo}
+	filers := filerComp.Instances()
+	require.Len(t, filers, 1)
+	require.Equal(t, "10.0.1.41", filers[0].GetHost())
+	require.Equal(t, 8888, filers[0].GetPort())
+
+	// IterInstance should visit all 4 instances
+	var visited int
+	topo.IterInstance(func(_ cspec.Instance) { visited++ })
+	require.Equal(t, 4, visited)
+}
+
+func TestVolumeInstanceExposesConfiguredPathsAsDataDirs(t *testing.T) {
+	topoFile := writeTopologyFile(t, `
+global:
+  user: "tidb"
+package_path: "/tmp/seaweedfs.tar.gz"
+filer_store:
+  type: tikv
+  from_tidb_cluster: "tidb-prod"
+  key_prefix: "swfs-prod"
+master_servers:
+  - host: 10.0.1.21
+volume_servers:
+  - host: 10.0.1.31
+    paths:
+      - path: "/data1/seaweedfs"
+      - path: "/data2/seaweedfs"
+filer_servers:
+  - host: 10.0.1.41
+`)
+	var topo Specification
+	require.NoError(t, cspec.ParseTopologyYaml(topoFile, &topo))
+
+	volume := (&SeaweedVolumeComponent{Topology: &topo}).Instances()[0]
+	require.Equal(t, "/data1/seaweedfs,/data2/seaweedfs", volume.DataDir())
+	require.Contains(t, volume.UsedDirs(), "/data1/seaweedfs")
+	require.Contains(t, volume.UsedDirs(), "/data2/seaweedfs")
+}
+
 func TestComponentsByStartOrder(t *testing.T) {
 	topo := &Specification{}
 	names := []string{}

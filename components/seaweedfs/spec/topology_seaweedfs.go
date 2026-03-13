@@ -14,12 +14,14 @@
 package spec
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/creasty/defaults"
 	"github.com/pingcap/errors"
@@ -85,8 +87,9 @@ type FilerStoreSpec struct {
 
 // VolumePathSpec describes a single storage path for a volume server.
 type VolumePathSpec struct {
-	Path    string `yaml:"path"`
-	MaxSize int    `yaml:"max_size,omitempty"` // in MB, 0 means use default
+	Path     string `yaml:"path"`
+	DiskType string `yaml:"disk_type,omitempty"` // e.g. "ssd", "hdd"
+	MaxSize  int    `yaml:"max_size,omitempty"`  // in MB, 0 means use default
 }
 
 // MasterSpec represents the SeaweedFS master topology specification.
@@ -491,11 +494,7 @@ func (s *Specification) Validate() error {
 		return err
 	}
 
-	if err := s.dirConflictsDetect(); err != nil {
-		return err
-	}
-
-	return nil
+	return s.dirConflictsDetect()
 }
 
 // platformConflictsDetect checks for conflicts in topology for different OS / Arch
@@ -816,8 +815,7 @@ func findField(v reflect.Value, fieldName string) (int, bool) {
 
 func getPort(v reflect.Value) string {
 	for i := 0; i < v.NumField(); i++ {
-		switch v.Type().Field(i).Name {
-		case "Port":
+		if v.Type().Field(i).Name == "Port" {
 			return fmt.Sprintf("%d", v.Field(i).Int())
 		}
 	}
@@ -849,7 +847,40 @@ func (c *SeaweedMasterComponent) CalculateVersion(clusterVersion string) string 
 func (c *SeaweedMasterComponent) SetVersion(version string) {}
 
 // Instances implements Component interface.
-func (c *SeaweedMasterComponent) Instances() []Instance { return nil }
+func (c *SeaweedMasterComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Topology.MasterServers))
+	for _, s := range c.Topology.MasterServers {
+		ins = append(ins, &MasterInstance{
+			BaseInstance: spec.BaseInstance{
+				InstanceSpec: s,
+				Name:         c.Name(),
+				Host:         s.Host,
+				ManageHost:   s.ManageHost,
+				ListenHost:   c.Topology.BaseTopo().GlobalOptions.ListenHost,
+				Port:         s.Port,
+				SSHP:         s.SSHPort,
+				Source:       ComponentSeaweedMaster,
+
+				Ports: []int{
+					s.Port,
+				},
+				Dirs: []string{
+					s.DeployDir,
+					s.DataDir,
+				},
+				StatusFn: func(_ context.Context, _ time.Duration, _ *tls.Config, _ ...string) string {
+					return "-"
+				},
+				UptimeFn: func(_ context.Context, _ time.Duration, _ *tls.Config) time.Duration {
+					return 0
+				},
+				Component: c,
+			},
+			topo: c.Topology,
+		})
+	}
+	return ins
+}
 
 // SeaweedVolumeComponent represents the SeaweedFS volume component.
 type SeaweedVolumeComponent struct{ Topology *Specification }
@@ -872,7 +903,38 @@ func (c *SeaweedVolumeComponent) CalculateVersion(clusterVersion string) string 
 func (c *SeaweedVolumeComponent) SetVersion(version string) {}
 
 // Instances implements Component interface.
-func (c *SeaweedVolumeComponent) Instances() []Instance { return nil }
+func (c *SeaweedVolumeComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Topology.VolumeServers))
+	for _, s := range c.Topology.VolumeServers {
+		dirs := append([]string{s.DeployDir}, s.dataDirs()...)
+		ins = append(ins, &VolumeInstance{
+			BaseInstance: spec.BaseInstance{
+				InstanceSpec: s,
+				Name:         c.Name(),
+				Host:         s.Host,
+				ManageHost:   s.ManageHost,
+				ListenHost:   c.Topology.BaseTopo().GlobalOptions.ListenHost,
+				Port:         s.Port,
+				SSHP:         s.SSHPort,
+				Source:       ComponentSeaweedVolume,
+
+				Ports: []int{
+					s.Port,
+				},
+				Dirs: dirs,
+				StatusFn: func(_ context.Context, _ time.Duration, _ *tls.Config, _ ...string) string {
+					return "-"
+				},
+				UptimeFn: func(_ context.Context, _ time.Duration, _ *tls.Config) time.Duration {
+					return 0
+				},
+				Component: c,
+			},
+			topo: c.Topology,
+		})
+	}
+	return ins
+}
 
 // SeaweedFilerComponent represents the SeaweedFS filer component.
 type SeaweedFilerComponent struct{ Topology *Specification }
@@ -895,4 +957,36 @@ func (c *SeaweedFilerComponent) CalculateVersion(clusterVersion string) string {
 func (c *SeaweedFilerComponent) SetVersion(version string) {}
 
 // Instances implements Component interface.
-func (c *SeaweedFilerComponent) Instances() []Instance { return nil }
+func (c *SeaweedFilerComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Topology.FilerServers))
+	for _, s := range c.Topology.FilerServers {
+		ins = append(ins, &FilerInstance{
+			BaseInstance: spec.BaseInstance{
+				InstanceSpec: s,
+				Name:         c.Name(),
+				Host:         s.Host,
+				ManageHost:   s.ManageHost,
+				ListenHost:   c.Topology.BaseTopo().GlobalOptions.ListenHost,
+				Port:         s.Port,
+				SSHP:         s.SSHPort,
+				Source:       ComponentSeaweedFiler,
+
+				Ports: []int{
+					s.Port,
+				},
+				Dirs: []string{
+					s.DeployDir,
+				},
+				StatusFn: func(_ context.Context, _ time.Duration, _ *tls.Config, _ ...string) string {
+					return "-"
+				},
+				UptimeFn: func(_ context.Context, _ time.Duration, _ *tls.Config) time.Duration {
+					return 0
+				},
+				Component: c,
+			},
+			topo: c.Topology,
+		})
+	}
+	return ins
+}
